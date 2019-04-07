@@ -1,0 +1,202 @@
+---
+title: "Practical Machine Learning Course Project"
+author: "Carlos Hinrichsen"
+date: "April 7th, 2019"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,cache = TRUE)
+```
+
+# Exercises Predition Analysis
+
+## Executive Summary
+
+The goal of this project was to create a predictive model to understand "how well"" 6 participants performed barbell lifts correctly and incorrectly in 5 different ways. "How well"" is the "classe" variable in the training set, to be predicted based in the other variables in the training set.
+
+Considering that the project instructions explained that: **"In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants"**, there were only considered the variables that contained words related with that parts of the body.
+
+Additionally, the data sets have important number of "NA" values, "divided" by zero values, among others values that need to avoid for the analysis. For this reason, variables with more than 50% of this values were excluded for the final analysis.Besides this, variables with near zero variance were also excluded.
+
+For the analysis, were developed two kind of models: 1) Decision Trees and 2) Random Forest, where the first one is a particular case of the second one. These models were selected because were fuly discussed during the lectures.
+
+For the model developing and out-of-error sample measure, a cross validation 10 folds were used with a center and scale preprocessing of the variables. As expected, this leads to less biased but more variability.
+
+After testing the models, the best Decision Tree and Random Forest were compared, and then used to  predict 20 different test cases. As expected, the Random Forest had better accuracy. For the purpose of the quiz project, there were only used the best models results.
+
+## Analysis
+
+1. Loading the required libraries and initial condition
+
+```{r message=FALSE, warning=FALSE}
+library(caret);library(rattle); library(rpart)
+set.seed(1234)
+```
+
+2. Exploratory Analysis
+
+Loading the data sets  
+
+```{r exploratory}
+#trainchoose <- file.choose()
+train <- read.csv("pml-training.csv")
+#validatechoose <- file.choose()
+validate <- read.csv("pml-testing.csv")
+```
+
+Subset the data sets only considering the relevant variables: For the train data set the variables that considered the parts of the body explained above, besides the "classe" variables. For the 20 test cases, the classe variable is not part of the data set.  
+
+```{r subsetparts}
+train <- train[,c(grep("belt|forearm|arm|dumbbell|classe",colnames(train))), drop=F]
+validate <- validate[,c(grep("belt|forearm|arm|dumbbell",colnames(validate))), drop=F]
+```
+
+Exclusion of variables with more than 50% of cases to avoid. 
+
+```{r subsetavoid}
+trainf<- train[,(colSums(is.na(train)|train==""|train==" "|train=="#DIV/0!")/(nrow(train)) < 0.5)]
+validatef<- validate[,(colSums(is.na(validate)|validate==""|validate==" "|validate=="#DIV/0!")/(nrow(validate)) < 0.5)]
+```
+
+Conversion of all variables into numeric (in particular the ones with integer format). This for preprocessing purposes.
+
+```{r subsetconversion}
+trainf[,1:(dim(trainf)[2]-1)] <- lapply(trainf[,1:(dim(trainf)[2]-1)], as.numeric)
+validatef[,1:(dim(validatef)[2])] <- lapply(validatef[,1:(dim(validatef)[2])], as.numeric)
+```
+
+The final subset is excluding variables with near zero variance. Looking the results below, there is no variable in such condition, therefore the subset process is completed.
+
+```{r subsetnearzero}
+nsvf <- nearZeroVar(trainf,saveMetrics = T)
+nsvf
+```
+
+3. Creation of folds for cross validation
+
+For cross validation purposes, 10 folds were created below. The idea is to train and test 10 decision tree models and 10 random forest models, and then compare the accuracy and out-of-error. 
+
+```{r partition}
+trainfolds <- createFolds(y=trainf$classe,k=10,list=TRUE,returnTrain=T)
+testfolds <- createFolds(y=trainf$classe,k=10,list=TRUE,returnTrain=F)
+train1 <- trainf[trainfolds[[1]],]; train2 <- trainf[trainfolds[[2]],]; train3 <- trainf[trainfolds[[3]],]; train4 <- trainf[trainfolds[[4]],]; train5 <- trainf[trainfolds[[5]],]; train6 <- trainf[trainfolds[[6]],]; train7 <- trainf[trainfolds[[7]],]; train8 <- trainf[trainfolds[[8]],]; train9 <- trainf[trainfolds[[9]],]; train10 <- trainf[trainfolds[[10]],]
+test1 <- trainf[testfolds[[1]],]; test2 <- trainf[testfolds[[2]],]; test3 <- trainf[testfolds[[3]],]; test4 <- trainf[testfolds[[4]],]; test5 <- trainf[testfolds[[5]],]; test6 <- trainf[testfolds[[6]],]; test7 <- trainf[testfolds[[7]],]; test8 <- trainf[testfolds[[8]],]; test9 <- trainf[testfolds[[9]],]; test10 <- trainf[testfolds[[10]],]
+```
+
+4. Train decision tree models
+
+Below is performed the train of the 10 decision tree models.
+
+```{r decisiontree}
+dt.fit1 <- rpart(classe~., data=train1, method="class")
+dt.fit2 <- rpart(classe~., data=train2, method="class")
+dt.fit3 <- rpart(classe~., data=train3, method="class")
+dt.fit4 <- rpart(classe~., data=train4, method="class")
+dt.fit5 <- rpart(classe~., data=train5, method="class")
+dt.fit6 <- rpart(classe~., data=train6, method="class")
+dt.fit7 <- rpart(classe~., data=train7, method="class")
+dt.fit8 <- rpart(classe~., data=train8, method="class")
+dt.fit9 <- rpart(classe~., data=train9, method="class")
+dt.fit10 <- rpart(classe~., data=train10, method="class")
+```
+
+5. Train random forest models
+
+Below is performed the train of the 10 random forest models.
+
+```{r randomforest}
+Control <- trainControl(method="cv", number=3)
+rf.fit1 <- train(classe~., data=train1, trControl=Control, preProcess=c("center","scale"))
+rf.fit2 <- train(classe~., data=train2, trControl=Control, preProcess=c("center","scale"))
+rf.fit3 <- train(classe~., data=train3, trControl=Control, preProcess=c("center","scale"))
+rf.fit4 <- train(classe~., data=train4, trControl=Control, preProcess=c("center","scale"))
+rf.fit5 <- train(classe~., data=train5, trControl=Control, preProcess=c("center","scale"))
+rf.fit6 <- train(classe~., data=train6, trControl=Control, preProcess=c("center","scale"))
+rf.fit7 <- train(classe~., data=train7, trControl=Control, preProcess=c("center","scale"))
+rf.fit8 <- train(classe~., data=train8, trControl=Control, preProcess=c("center","scale"))
+rf.fit9 <- train(classe~., data=train9, trControl=Control, preProcess=c("center","scale"))
+rf.fit10 <- train(classe~., data=train10, trControl=Control, preProcess=c("center","scale"))
+```
+
+6. Test decision tree and random forest models and compare Accuracy
+
+The 10 decision tree models and 10 random forest models were tested, in order to calculate the accuracy of each one and the mean.
+
+
+```{r accuracy}
+accuracydt <- rbind(confusionMatrix(test1$classe, predict(dt.fit1, newdata=test1,type="class"))$overall[1],confusionMatrix(test2$classe, predict(dt.fit2, newdata=test2,type="class"))$overall[1],confusionMatrix(test3$classe, predict(dt.fit3, newdata=test3,type="class"))$overall[1],confusionMatrix(test4$classe, predict(dt.fit4, newdata=test4,type="class"))$overall[1],confusionMatrix(test5$classe, predict(dt.fit5, newdata=test5,type="class"))$overall[1],confusionMatrix(test6$classe, predict(dt.fit6, newdata=test6,type="class"))$overall[1],confusionMatrix(test7$classe, predict(dt.fit7, newdata=test7,type="class"))$overall[1],confusionMatrix(test8$classe, predict(dt.fit8, newdata=test8,type="class"))$overall[1],confusionMatrix(test9$classe, predict(dt.fit9, newdata=test9,type="class"))$overall[1],confusionMatrix(test10$classe, predict(dt.fit10, newdata=test10,type="class"))$overall[1])
+colnames(accuracydt) <- "Accuracy Decision Tree"
+accuracydt
+accuracyrf <- rbind(confusionMatrix(test1$classe, predict(rf.fit1, newdata=test1))$overall[1],confusionMatrix(test2$classe, predict(rf.fit2, newdata=test2))$overall[1],confusionMatrix(test3$classe, predict(rf.fit3, newdata=test3))$overall[1],confusionMatrix(test4$classe, predict(rf.fit4, newdata=test4))$overall[1],confusionMatrix(test5$classe, predict(rf.fit5, newdata=test5))$overall[1],confusionMatrix(test6$classe, predict(rf.fit6, newdata=test6))$overall[1],confusionMatrix(test7$classe, predict(rf.fit7, newdata=test7))$overall[1],confusionMatrix(test8$classe, predict(rf.fit8, newdata=test8))$overall[1],confusionMatrix(test9$classe, predict(rf.fit9, newdata=test9))$overall[1],confusionMatrix(test10$classe, predict(rf.fit10, newdata=test10))$overall[1])
+colnames(accuracyrf) <- "Accuracy Random Forest"
+accuracyrf
+meandt <- paste(mean(accuracydt)*100,"%",sep="")
+meanrf <- paste(mean(accuracyrf)*100,"%",sep="")
+sddt <- paste(sd(accuracydt)*100,"%",sep="")
+sdrf <- paste(sd(accuracyrf)*100,"%",sep="")
+```
+
+Above are shown two matrices, the first one with the accuracy of the 10 decision tree models, and the second one the accuracy of the 10 random forest models. The results are expected, basically because the decision tree is a particular case of a random forest. Therefore, the accuracy of the random forest models are greater than the decision tree models. The best accuracy of the decision tree models is `r max(accuracydt)*100`% and for the random forest is `r max(accuracyrf)*100`%.
+
+Overall, the mean accuracy of the decision tree models is `r meandt`, and for the random forest models is `r meanrf`. It is clear the differences in accuracy between the models, being greater in the random forest models. 
+
+7. Out-of-error sample
+
+After calculated the mean accuracy, the out-of-error sample is simple to calculate. Just it is needed to substract the mean of the accuracy to a 100%.
+
+```{r error}
+errdt <- paste((1-mean(accuracydt))*100,"%",sep="")
+errrf <- paste((1-mean(accuracyrf))*100,"%",sep = "")
+```
+
+Therefore, the out-of-error sample of the decision tree models is `r errdt`, and for the random forest models is `r errrf`. Based on the accuracy, the out-of-error sample of the decision tree is greater than the random forest.
+
+8. Validation
+
+This final step is for predict the 20 cases using the best model in terms of accuracy. First, it is calculated the prediction for all 10 models for decision tree and 10 models of random forest
+
+
+```{r validation}
+fit1dt <- predict(dt.fit1, newdata=validate,type="class"); fit2dt <- predict(dt.fit2, newdata=validate,type="class"); fit3dt <- predict(dt.fit3, newdata=validate,type="class"); fit4dt <- predict(dt.fit4, newdata=validate,type="class"); fit5dt <- predict(dt.fit5, newdata=validate,type="class"); fit6dt <- predict(dt.fit6, newdata=validate,type="class"); fit7dt <- predict(dt.fit7, newdata=validate,type="class"); fit8dt <- predict(dt.fit8, newdata=validate,type="class"); fit9dt <- predict(dt.fit9, newdata=validate,type="class");fit10dt <- predict(dt.fit10, newdata=validate,type="class")
+validatedt <- t(data.frame(fit1dt,fit2dt,fit3dt,fit4dt,fit5dt,fit6dt,fit7dt,fit8dt,fit9dt,fit10dt))
+colnames(validatedt) <- c("case1","case2","case3","case4","case5","case6","case7","case8","case9","case10","case11","case12","case13","case14","case15","case16","case17","case18","case19","case20")
+validatedt
+fit1rf <- predict(rf.fit1, newdata=validate); fit2rf <- predict(rf.fit2, newdata=validate); fit3rf <- predict(rf.fit3, newdata=validate); fit4rf <- predict(rf.fit4, newdata=validate); fit5rf <- predict(rf.fit5, newdata=validate); fit6rf <- predict(rf.fit6, newdata=validate); fit7rf <- predict(rf.fit7, newdata=validate); fit8rf <- predict(rf.fit8, newdata=validate); fit9rf <- predict(rf.fit9, newdata=validate);fit10rf <- predict(rf.fit10, newdata=validate)
+validaterf <- t(data.frame(fit1rf,fit2rf,fit3rf,fit4rf,fit5rf,fit6rf,fit7rf,fit8rf,fit9rf,fit10rf))
+colnames(validaterf) <- c("case1","case2","case3","case4","case5","case6","case7","case8","case9","case10","case11","case12","case13","case14","case15","case16","case17","case18","case19","case20")
+validaterf
+```
+
+Considering the 20 cases, within the decision 10 tree models, some differences appear. In contrast, all the predictions for random forest models are the same.
+
+Below is shown the best decision tree model in terms of accuracy, with its respective confussion matrix.
+
+```{r bestdecisiontree}
+dt.fit3
+fancyRpartPlot(dt.fit3)
+confusionMatrix(test3$classe, predict(dt.fit3, newdata=test3,type="class"))
+```
+
+On the other hand, the best random forest model is shown below, with its respective confussion matrix.
+
+```{r bestrandomforest}
+rf.fit1
+confusionMatrix(test1$classe, predict(rf.fit1, newdata=test1))
+```
+
+In order to understand how different are the predictions between the best models, a comparison of the outputs were performed below.
+
+```{r outcomecompare}
+comparison <- validatedt[3,]==validaterf[1,]
+comp <- sum(comparison=="TRUE")/length(comparison)*100
+```
+
+Therefore, the outcomes of the best decision tree are `r comp`% similar than the best random forest. This difference could lead to bad prediction decisions.
+
+9. Conclusion
+
+Finally, the best model for prediction of the variable "classe" was one determined by random forest algorithm. In order to reduce bias, a 10 fold cross validation was performed and the results were promising because the mean of the variance (measure by the standard deviation) was low. In fact, was `r sdrf` for the random forest, much better than decision tree of `r sddt`. 
